@@ -1,82 +1,88 @@
 using System;
 using Core.Entities;
+using Core.Interfaces;
 using Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace API.Controllers;
+
 [ApiController]
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
-    private readonly StoreContext context;
+    private readonly IProductRepository _productRepository;
 
-    public ProductsController(StoreContext context)
+    public ProductsController(IProductRepository productRepository)
     {
-        this.context = context;
+        _productRepository = productRepository;
     }
 
     // Tüm aktif (silinmemiş) ürünleri listeleme
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
+    public async Task<ActionResult<IEnumerable<Product>>> GetProducts(string? brand, string? type, string? sort)
     {
-        // Soft delete yapılmamış (DeletedDate == null) ürünleri getiriyoruz
-        return await context.Products
-            .Where(p => p.DeletedDate == null) // Manuel kontrol
-            .ToListAsync();
+        var products = await _productRepository.GetProductsAsync(brand, type, sort);
+        return Ok(products);
     }
 
     // Silinmiş ürünleri listeleme
     [HttpGet("deleted")]
     public async Task<ActionResult<IEnumerable<Product>>> GetDeletedProducts()
     {
-        // Soft delete yapılmış ürünleri getiriyoruz
-        return await context.Products
-            .Where(p => p.DeletedDate != null) // Manuel kontrol
-            .ToListAsync();
+        var deletedProducts = await _productRepository.GetDeletedProductsAsync();
+        return Ok(deletedProducts);
     }
 
+    // Belirli bir ürünü ID ile alma
     [HttpGet("{id:int}")] // api/products/2
     public async Task<ActionResult<Product>> GetProduct(int id)
     {
-        var product = await context.Products.FindAsync(id);
-        if(product == null) return NotFound();
-        return product;
+        var product = await _productRepository.GetProductByIdAsync(id);
+        if (product == null) return NotFound();
+        return Ok(product);
     }
 
+    [HttpGet("brands")]
+    public async Task<ActionResult<string>> GetBrands()
+    {
+        return Ok(await _productRepository.GetBrandsAsync()); 
+    }
+
+    [HttpGet("types")]
+    public async Task<ActionResult<string>> GetTypes()
+    {
+        return Ok(await _productRepository.GetTypesAsync());
+    }
+
+    // Yeni ürün ekleme
     [HttpPost]
     public async Task<ActionResult<Product>> CreateProduct(Product product)
     {
-        context.Products.Add(product);
-        await context.SaveChangesAsync();
-        return product;
+        _productRepository.AddProduct(product);
+        var success = await _productRepository.SaveChangesAsync();
+
+        if (!success)
+            return BadRequest("Problem creating product");
+
+        return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
     }
 
+    // Ürün güncelleme
     [HttpPut("{id:int}")]
     public async Task<ActionResult> UpdateProduct(int id, Product product)
     {
-        if(product.Id != id || !ProductExist(id))
-            return BadRequest("Can not Update This Product");
+        if (id != product.Id) return BadRequest("ID mismatch");
 
-        product.UpdatedDate = DateTime.Now;
+        // Ürün var mı kontrol et
+        if (!await _productRepository.ProductExistsAsync(id))
+            return NotFound("The product could not be found");
 
-        context.Entry(product).State = EntityState.Modified;
-        await context.SaveChangesAsync();
-        return NoContent();
-    }
+        _productRepository.UpdateProduct(product);
+        var success = await _productRepository.SaveChangesAsync();
 
-        // Silinen ürünü geri getirme (restore)
-    [HttpPut("restore/{id:int}")]
-    public async Task<ActionResult> RestoreProduct(int id)
-    {
-        var product = await context.Products.FindAsync(id);
-        if (product == null || product.DeletedDate == null) // Eğer ürün zaten aktifse geri getirilemez
-            return NotFound();
-
-        product.DeletedDate = null; // Ürünü geri getiriyoruz
-
-        context.Entry(product).State = EntityState.Modified;
-        await context.SaveChangesAsync();
+        if (!success)
+            return BadRequest("Problem updating the product");
 
         return NoContent();
     }
@@ -85,13 +91,32 @@ public class ProductsController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<ActionResult> SoftDeleteProduct(int id)
     {
-        var product = await context.Products.FindAsync(id);
-        if (product == null) return NotFound();
+        // Ürün var mı kontrol et
+        if (!await _productRepository.ProductExistsAsync(id))
+            return NotFound("The product could not be found");
 
-        product.DeletedDate = DateTime.Now; // Soft delete işlemi
+        _productRepository.SoftDeleteProduct(id);
+        var success = await _productRepository.SaveChangesAsync();
 
-        context.Entry(product).State = EntityState.Modified;
-        await context.SaveChangesAsync();
+        if (!success)
+            return BadRequest("Problem deleting the product");
+
+        return NoContent();
+    }
+
+    // Silinmiş ürünü geri getirme (restore)
+    [HttpPut("restore/{id:int}")]
+    public async Task<ActionResult> RestoreProduct(int id)
+    {
+        // Silinmiş ürün var mı kontrol et
+        if (!await _productRepository.ProductExistsAsync(id))
+            return NotFound("The product could not be found");
+
+        _productRepository.RestoreProduct(id);
+        var success = await _productRepository.SaveChangesAsync();
+
+        if (!success)
+            return BadRequest("Problem restoring the product");
 
         return NoContent();
     }
@@ -100,17 +125,17 @@ public class ProductsController : ControllerBase
     [HttpDelete("{id:int}/hard")]
     public async Task<ActionResult> HardDeleteProduct(int id)
     {
-        var product = await context.Products.FindAsync(id);
-        if (product == null) return NotFound();
+        // Ürün var mı kontrol et
+        if (!await _productRepository.ProductExistsAsync(id))
+            return NotFound("The product could not be found");
 
-        context.Products.Remove(product); // Hard delete işlemi (fiziksel silme)
-        await context.SaveChangesAsync();
+        _productRepository.HardDeleteProduct(id);
+        var success = await _productRepository.SaveChangesAsync();
+
+        if (!success)
+            return BadRequest("Problem completely deleting the product");
 
         return NoContent();
     }
-
-    private bool ProductExist(int id)
-    {
-        return context.Products.Any(x => x.Id == id);
-    }
 }
+

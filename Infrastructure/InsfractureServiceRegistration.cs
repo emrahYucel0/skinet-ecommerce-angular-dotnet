@@ -4,6 +4,7 @@ using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Core.Interfaces;
 
 namespace Infrastructure;
 
@@ -13,6 +14,8 @@ public static class InfrastructureServiceRegistration
     {
         services.AddDbContext<StoreContext>(options => 
             options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+        
+        services.AddScoped<IProductRepository, ProductRepository>();
 
         return services;
     }
