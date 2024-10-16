@@ -1,6 +1,7 @@
 using System;
 using Core.Entities;
 using Core.Interfaces;
+using Core.Specifications;
 using Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,26 +12,29 @@ namespace API.Controllers;
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
-    private readonly IProductRepository _productRepository;
+    private readonly IGenericRepository<Product> _productRepository;
 
-    public ProductsController(IProductRepository productRepository)
+    public ProductsController(IGenericRepository<Product> productRepository)
     {
         _productRepository = productRepository;
     }
 
     // Tüm aktif (silinmemiş) ürünleri listeleme
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Product>>> GetProducts(string? brand, string? type, string? sort)
+    public async Task<ActionResult<IReadOnlyList<Product>>> GetProducts(string? brand, string? type, string? sort)
     {
-        var products = await _productRepository.GetProductsAsync(brand, type, sort);
+        var spec = new ProductSpecification(brand, type, sort);
+
+        var products = await _productRepository.ListAsync(spec);
+
         return Ok(products);
     }
 
     // Silinmiş ürünleri listeleme
     [HttpGet("deleted")]
-    public async Task<ActionResult<IEnumerable<Product>>> GetDeletedProducts()
+    public async Task<ActionResult<IReadOnlyList<Product>>> GetDeletedProducts()
     {
-        var deletedProducts = await _productRepository.GetDeletedProductsAsync();
+        var deletedProducts = await _productRepository.ListAllDeletedAsync();
         return Ok(deletedProducts);
     }
 
@@ -38,7 +42,7 @@ public class ProductsController : ControllerBase
     [HttpGet("{id:int}")] // api/products/2
     public async Task<ActionResult<Product>> GetProduct(int id)
     {
-        var product = await _productRepository.GetProductByIdAsync(id);
+        var product = await _productRepository.GetByIdAsync(id);
         if (product == null) return NotFound();
         return Ok(product);
     }
@@ -46,21 +50,25 @@ public class ProductsController : ControllerBase
     [HttpGet("brands")]
     public async Task<ActionResult<string>> GetBrands()
     {
-        return Ok(await _productRepository.GetBrandsAsync()); 
+        var spec = new BrandListSpecification();
+
+        return Ok( await _productRepository.ListAsync(spec));
     }
 
     [HttpGet("types")]
     public async Task<ActionResult<string>> GetTypes()
     {
-        return Ok(await _productRepository.GetTypesAsync());
+        var spec = new TypeListSpecification();
+        
+        return Ok( await _productRepository.ListAsync(spec));
     }
 
     // Yeni ürün ekleme
     [HttpPost]
     public async Task<ActionResult<Product>> CreateProduct(Product product)
     {
-        _productRepository.AddProduct(product);
-        var success = await _productRepository.SaveChangesAsync();
+        _productRepository.Add(product);
+        var success = await _productRepository.SaveAll();
 
         if (!success)
             return BadRequest("Problem creating product");
@@ -75,11 +83,12 @@ public class ProductsController : ControllerBase
         if (id != product.Id) return BadRequest("ID mismatch");
 
         // Ürün var mı kontrol et
-        if (!await _productRepository.ProductExistsAsync(id))
+        var exists = await _productRepository.ExistsAsync(id);
+        if (!exists)
             return NotFound("The product could not be found");
 
-        _productRepository.UpdateProduct(product);
-        var success = await _productRepository.SaveChangesAsync();
+        _productRepository.Update(product);
+        var success = await _productRepository.SaveAll();
 
         if (!success)
             return BadRequest("Problem updating the product");
@@ -91,12 +100,12 @@ public class ProductsController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<ActionResult> SoftDeleteProduct(int id)
     {
-        // Ürün var mı kontrol et
-        if (!await _productRepository.ProductExistsAsync(id))
+        var exists = await _productRepository.ExistsAsync(id);
+        if (!exists)
             return NotFound("The product could not be found");
 
-        _productRepository.SoftDeleteProduct(id);
-        var success = await _productRepository.SaveChangesAsync();
+        _productRepository.SoftDelete(id);
+        var success = await _productRepository.SaveAll();
 
         if (!success)
             return BadRequest("Problem deleting the product");
@@ -108,12 +117,12 @@ public class ProductsController : ControllerBase
     [HttpPut("restore/{id:int}")]
     public async Task<ActionResult> RestoreProduct(int id)
     {
-        // Silinmiş ürün var mı kontrol et
-        if (!await _productRepository.ProductExistsAsync(id))
+        var exists = await _productRepository.ExistsAsync(id);
+        if (!exists)
             return NotFound("The product could not be found");
 
-        _productRepository.RestoreProduct(id);
-        var success = await _productRepository.SaveChangesAsync();
+        _productRepository.Restore(id);
+        var success = await _productRepository.SaveAll();
 
         if (!success)
             return BadRequest("Problem restoring the product");
@@ -125,12 +134,12 @@ public class ProductsController : ControllerBase
     [HttpDelete("{id:int}/hard")]
     public async Task<ActionResult> HardDeleteProduct(int id)
     {
-        // Ürün var mı kontrol et
-        if (!await _productRepository.ProductExistsAsync(id))
+        var exists = await _productRepository.ExistsAsync(id);
+        if (!exists)
             return NotFound("The product could not be found");
 
-        _productRepository.HardDeleteProduct(id);
-        var success = await _productRepository.SaveChangesAsync();
+        _productRepository.HardDelete(id);
+        var success = await _productRepository.SaveAll();
 
         if (!success)
             return BadRequest("Problem completely deleting the product");
@@ -138,4 +147,3 @@ public class ProductsController : ControllerBase
         return NoContent();
     }
 }
-
