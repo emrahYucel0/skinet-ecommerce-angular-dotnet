@@ -1,4 +1,5 @@
 using System;
+using API.RequestHelpers;
 using Core.Entities;
 using Core.Interfaces;
 using Core.Specifications;
@@ -10,31 +11,29 @@ namespace API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ProductsController : ControllerBase
+public class ProductsController : BaseApiController
 {
-    private readonly IGenericRepository<Product> _productRepository;
+    private readonly IGenericRepository<Product> _repo;
 
-    public ProductsController(IGenericRepository<Product> productRepository)
+    public ProductsController(IGenericRepository<Product> repo)
     {
-        _productRepository = productRepository;
+        _repo = repo;
     }
 
     // Tüm aktif (silinmemiş) ürünleri listeleme
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<Product>>> GetProducts(string? brand, string? type, string? sort)
+    public async Task<ActionResult<IReadOnlyList<Product>>> GetProducts([FromQuery] ProductSpecParams specParams)
     {
-        var spec = new ProductSpecification(brand, type, sort);
+        var spec = new ProductSpecification(specParams);
 
-        var products = await _productRepository.ListAsync(spec);
-
-        return Ok(products);
+        return await CreatePagedResult(_repo, spec, specParams.PageIndex, specParams.PageSize);
     }
 
     // Silinmiş ürünleri listeleme
     [HttpGet("deleted")]
     public async Task<ActionResult<IReadOnlyList<Product>>> GetDeletedProducts()
     {
-        var deletedProducts = await _productRepository.ListAllDeletedAsync();
+        var deletedProducts = await _repo.ListAllDeletedAsync();
         return Ok(deletedProducts);
     }
 
@@ -42,7 +41,7 @@ public class ProductsController : ControllerBase
     [HttpGet("{id:int}")] // api/products/2
     public async Task<ActionResult<Product>> GetProduct(int id)
     {
-        var product = await _productRepository.GetByIdAsync(id);
+        var product = await _repo.GetByIdAsync(id);
         if (product == null) return NotFound();
         return Ok(product);
     }
@@ -52,7 +51,7 @@ public class ProductsController : ControllerBase
     {
         var spec = new BrandListSpecification();
 
-        return Ok( await _productRepository.ListAsync(spec));
+        return Ok( await _repo.ListAsync(spec));
     }
 
     [HttpGet("types")]
@@ -60,15 +59,15 @@ public class ProductsController : ControllerBase
     {
         var spec = new TypeListSpecification();
         
-        return Ok( await _productRepository.ListAsync(spec));
+        return Ok( await _repo.ListAsync(spec));
     }
 
     // Yeni ürün ekleme
     [HttpPost]
     public async Task<ActionResult<Product>> CreateProduct(Product product)
     {
-        _productRepository.Add(product);
-        var success = await _productRepository.SaveAll();
+        _repo.Add(product);
+        var success = await _repo.SaveAll();
 
         if (!success)
             return BadRequest("Problem creating product");
@@ -83,12 +82,12 @@ public class ProductsController : ControllerBase
         if (id != product.Id) return BadRequest("ID mismatch");
 
         // Ürün var mı kontrol et
-        var exists = await _productRepository.ExistsAsync(id);
+        var exists = await _repo.ExistsAsync(id);
         if (!exists)
             return NotFound("The product could not be found");
 
-        _productRepository.Update(product);
-        var success = await _productRepository.SaveAll();
+        _repo.Update(product);
+        var success = await _repo.SaveAll();
 
         if (!success)
             return BadRequest("Problem updating the product");
@@ -100,12 +99,12 @@ public class ProductsController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<ActionResult> SoftDeleteProduct(int id)
     {
-        var exists = await _productRepository.ExistsAsync(id);
+        var exists = await _repo.ExistsAsync(id);
         if (!exists)
             return NotFound("The product could not be found");
 
-        _productRepository.SoftDelete(id);
-        var success = await _productRepository.SaveAll();
+        _repo.SoftDelete(id);
+        var success = await _repo.SaveAll();
 
         if (!success)
             return BadRequest("Problem deleting the product");
@@ -117,12 +116,12 @@ public class ProductsController : ControllerBase
     [HttpPut("restore/{id:int}")]
     public async Task<ActionResult> RestoreProduct(int id)
     {
-        var exists = await _productRepository.ExistsAsync(id);
+        var exists = await _repo.ExistsAsync(id);
         if (!exists)
             return NotFound("The product could not be found");
 
-        _productRepository.Restore(id);
-        var success = await _productRepository.SaveAll();
+        _repo.Restore(id);
+        var success = await _repo.SaveAll();
 
         if (!success)
             return BadRequest("Problem restoring the product");
@@ -134,12 +133,12 @@ public class ProductsController : ControllerBase
     [HttpDelete("{id:int}/hard")]
     public async Task<ActionResult> HardDeleteProduct(int id)
     {
-        var exists = await _productRepository.ExistsAsync(id);
+        var exists = await _repo.ExistsAsync(id);
         if (!exists)
             return NotFound("The product could not be found");
 
-        _productRepository.HardDelete(id);
-        var success = await _productRepository.SaveAll();
+        _repo.HardDelete(id);
+        var success = await _repo.SaveAll();
 
         if (!success)
             return BadRequest("Problem completely deleting the product");
