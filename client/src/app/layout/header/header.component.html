@@ -1,17 +1,29 @@
 <header class="border-b shadow-md p-3 w-full">
-    <div class="flex align-middle items-center justify-between max-w-screen-2xl mx-auto">
-        <img src="/images/logo.png" alt="app logo" class="max-h-16">
-        <nav  class="flex gap-3 my-2 uppercase text-2xl">
-            <a>Home</a>
-            <a>Shop</a>
-            <a>Contact</a>
+    <div class="flex flex-col md:flex-row items-center justify-between max-w-screen-2xl mx-auto">
+        <!-- Logo -->
+        <img src="/images/logo.png" alt="app logo" class="max-h-16 mb-4 md:mb-0">
+
+        <!-- Hamburger Menü (Mobil İçin) -->
+        <button class="block md:hidden cursor-pointer mb-4 md:mb-0" (click)="toggleMenu()">
+            <mat-icon>menu</mat-icon>
+        </button>
+
+        <!-- Menü (Mobilde gizli, geniş ekranda görünür) -->
+        <nav [ngClass]="{'hidden': !isMenuOpen, 'flex': isMenuOpen, 'md:flex': true}" class="gap-3 my-2 uppercase text-lg md:text-2xl">
+            <a href="#">Home</a>
+            <a href="#">Shop</a>
+            <a href="#">Contact</a>
         </nav>
-        <div class="flex gap-3 align-middle">
-            <a matBadge="5" matBadgeSize="large" class="custom-badge mt-2 mr-2">
+
+        <!-- Sağ Taraf: Sepet ve Giriş/Kayıt Düğmeleri (Her zaman yatayda) -->
+        <div class="flex flex-row gap-3 items-center">
+            <a matBadge="5" matBadgeSize="large" class="custom-badge mt-2">
                 <mat-icon>shopping_cart</mat-icon>
             </a>
             <button mat-stroked-button>Login</button>
             <button mat-stroked-button>Register</button>
         </div>
     </div>
+
+  
 </header>
