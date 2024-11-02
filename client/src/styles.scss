@@ -21,6 +21,13 @@ $customTheme: mat.define-theme();
     @apply mx-auto max-w-screen-2xl
 }
 
+button.match-input-height {
+    height: var(--mat-form-field-container-height) !important;
+}
+
+.mdc-notched-outline__notch {
+    border-right-style: none !important
+}
 // .gridImage{
 //     grid-template-columns: repeat(auto-fit,minmax(250px,1fr));
 // }
