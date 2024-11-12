@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Core.Interfaces;
+using StackExchange.Redis;
+using Infrastructure.Services;
 
 namespace Infrastructure;
 
@@ -17,6 +19,16 @@ public static class InfrastructureServiceRegistration
         
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+
+        services.AddSingleton<IConnectionMultiplexer>(sp =>
+        {
+            var connString = configuration.GetConnectionString("Redis") 
+                ?? throw new Exception("Cannot get redis connection string");
+            var configurationOptions = ConfigurationOptions.Parse(connString, true);
+            return ConnectionMultiplexer.Connect(configurationOptions);
+        });
+
+        services.AddSingleton<ICartService, CartService>();
 
         return services;
     }

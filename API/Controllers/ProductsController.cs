@@ -8,9 +8,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace API.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
 public class ProductsController : BaseApiController
 {
     private readonly IGenericRepository<Product> _repo;
